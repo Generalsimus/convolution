@@ -34,7 +34,6 @@ type Kernel2D struct {
 
 func (kernel Kernel2D) ConvolutionImage(img image.Image) image.Image {
 	kernelLen := len(kernel.inputs)
-	// fmt.Println("kernelLen", kernelLen)
 	bounds := img.Bounds()
 	// maxColor := float64(257 * 255)
 	centerX := int(math.Floor(float64(kernel.widget) / 2))
@@ -77,6 +76,130 @@ func (kernel Kernel2D) ConvolutionImage(img image.Image) image.Image {
 
 	return newImage
 }
+func (kernel Kernel2D) ConvolutionPoolImage(img image.Image) image.Image {
+	kernelLen := len(kernel.inputs)
+	bounds := img.Bounds()
+	//////////////////////
+	newWidget := bounds.Max.X - kernel.widget
+	newHeight := bounds.Max.Y - kernel.height
+
+	newImage := image.NewRGBA(image.Rect(0, 0, newWidget, newHeight))
+	for row := 0; row < newHeight; row++ {
+		for column := 0; column < newWidget; column++ {
+			var red float64 = 0
+			var green float64 = 0
+			var blue float64 = 0
+			var alpha float64 = 0
+			// if ro
+			for k := 0; k < kernelLen; k++ {
+				kx := k % kernel.widget
+				ky := (k - kx) / kernel.widget
+
+				x := column + kx
+				y := row + ky
+				r, g, b, a := img.At(x, y).RGBA()
+				kernelInput := kernel.inputs[k]
+
+				red = red + (float64(r>>8) * kernelInput)
+				green = green + (float64(g>>8) * kernelInput)
+				blue = blue + (float64(b>>8) * kernelInput)
+				if column == x && row == y {
+					alpha = float64(a >> 8)
+				}
+
+			}
+
+			newImage.Set(column, row, color.RGBA{
+				uint8(math.Max(math.Min(red, 255), 0)),
+				uint8(math.Max(math.Min(green, 255), 0)),
+				uint8(math.Max(math.Min(blue, 255), 0)),
+				uint8(alpha),
+			})
+
+		}
+	}
+
+	return newImage
+}
+func MaxPoolImage(img image.Image, widget int, height int) image.Image {
+	bounds := img.Bounds()
+	//////////////////////
+	newWidget := int(math.Round(float64(bounds.Max.X / widget)))
+	newHeight := int(math.Round(float64(bounds.Max.Y / height)))
+
+	newImage := image.NewRGBA(image.Rect(0, 0, newWidget, newHeight))
+
+	for row := 0; row < newHeight; row++ {
+		for column := 0; column < newWidget; column++ {
+			var maxRed float64 = 0
+			var maxGreen float64 = 0
+			var maxBlue float64 = 0
+			var averageAlpha float64 = 0
+
+			for rowY := (row * height); rowY < ((row * height) + height); rowY++ {
+
+				for columnX := (column * widget); columnX < ((column * widget) + widget); columnX++ {
+					r, g, b, a := img.At(columnX, rowY).RGBA()
+
+					maxRed = math.Max(maxRed, float64(r))
+					maxGreen = math.Max(maxGreen, float64(g))
+					maxBlue = math.Max(maxBlue, float64(b))
+					averageAlpha += float64(a)
+				}
+			}
+
+			newImage.Set(column, row, color.RGBA{
+				uint8(maxRed),
+				uint8(maxGreen),
+				uint8(maxBlue),
+				uint8(averageAlpha / float64(height*widget)),
+			})
+
+		}
+	}
+
+	return newImage
+}
+func AveragePoolImage(img image.Image, widget int, height int) image.Image {
+	bounds := img.Bounds()
+	//////////////////////
+	newWidget := int(math.Round(float64(bounds.Max.X / widget)))
+	newHeight := int(math.Round(float64(bounds.Max.Y / height)))
+
+	newImage := image.NewRGBA(image.Rect(0, 0, newWidget, newHeight))
+
+	downPixelSize := float64(height*widget + 2)
+	for row := 0; row < newHeight; row++ {
+		for column := 0; column < newWidget; column++ {
+			var maxRed float64 = 0
+			var maxGreen float64 = 0
+			var maxBlue float64 = 0
+			var averageAlpha float64 = 0
+
+			for rowY := (row * height); rowY < ((row * height) + height); rowY++ {
+
+				for columnX := (column * widget); columnX < ((column * widget) + widget); columnX++ {
+					r, g, b, a := img.At(columnX, rowY).RGBA()
+
+					maxRed += float64(r)
+					maxGreen += float64(g)
+					maxBlue += float64(b)
+					averageAlpha += float64(a)
+				}
+			}
+
+			newImage.Set(column, row, color.RGBA{
+				uint8(maxRed / downPixelSize),
+				uint8(maxGreen / downPixelSize),
+				uint8(maxBlue / downPixelSize),
+				uint8(averageAlpha / downPixelSize),
+			})
+
+		}
+	}
+
+	return newImage
+}
 
 type Layer struct {
 	inputs []float64
@@ -106,12 +229,15 @@ func main() {
 
 		kernel := Kernel2D{
 			inputs: []float64{
-				-1, -1, -1,
-				-1, 8, -1,
-				-1, -1, -1,
+				// -1, -1, -1,
+				// -1, 8, -1,
+				// -1, -1, -1,
 				// -1, -2, -1,
 				// 0, 0, 0,
 				// 1, 2, 1,
+				0.111, 0.111, 0.111,
+				0.111, 0.111, 0.111,
+				0.111, 0.111, 0.111,
 			},
 			widget: 3,
 			height: 3,
@@ -120,6 +246,16 @@ func main() {
 
 		img, _ := getImageFromFilePath(dirPath + fileName)
 		saveImageAt(kernel.ConvolutionImage(img), "./save/"+fileName)
+		fmt.Println("POOLED: ", fileName)
+
+		imgPool, _ := getImageFromFilePath(dirPath + fileName)
+		saveImageAt(kernel.ConvolutionPoolImage(imgPool), "./save/pool"+fileName)
+
+		imgMaxPool, _ := getImageFromFilePath(dirPath + fileName)
+		saveImageAt(MaxPoolImage(imgMaxPool, 2, 2), "./save/MaxPool"+fileName)
+
+		imgAveragePool, _ := getImageFromFilePath(dirPath + fileName)
+		saveImageAt(AveragePoolImage(imgAveragePool, 2, 2), "./save/AveragePool"+fileName)
 
 	}
 	fmt.Println("END")
