@@ -168,30 +168,47 @@ func AveragePoolImage(img image.Image, widget int, height int) image.Image {
 
 	newImage := image.NewRGBA(image.Rect(0, 0, newWidget, newHeight))
 
-	downPixelSize := float64(height*widget + 2)
+	downPixelSize := uint64(height * widget)
 	for row := 0; row < newHeight; row++ {
 		for column := 0; column < newWidget; column++ {
-			var maxRed float64 = 0
-			var maxGreen float64 = 0
-			var maxBlue float64 = 0
-			var averageAlpha float64 = 0
+			var maxRed uint64 = 0
+			var maxGreen uint64 = 0
+			var maxBlue uint64 = 0
+			var averageAlpha uint64 = 0
 
 			for rowY := (row * height); rowY < ((row * height) + height); rowY++ {
 
 				for columnX := (column * widget); columnX < ((column * widget) + widget); columnX++ {
 					r, g, b, a := img.At(columnX, rowY).RGBA()
 
-					maxRed += float64(r)
-					maxGreen += float64(g)
-					maxBlue += float64(b)
-					averageAlpha += float64(a)
+					maxRed = (maxRed + uint64(r))
+					maxGreen = (maxGreen + uint64(g))
+					maxBlue = (maxBlue + uint64(b))
+					averageAlpha = (averageAlpha + uint64(a))
+					// fmt.Println("COLOR1: ", uint64(r), uint64(g), uint64(b), uint64(a), "COLOR2: ",
+					// 	uint64(maxRed),
+					// 	uint64(maxGreen),
+					// 	uint64(maxBlue),
+					// 	uint64(averageAlpha),
+					// )
 				}
 			}
+			// fmt.Println("RGBA: ",
+			// 	uint64(maxRed/downPixelSize),
+			// 	uint64(maxGreen/downPixelSize),
+			// 	uint64(maxBlue/downPixelSize),
+			// 	uint64(averageAlpha/downPixelSize),
+			// 	// uint8(averageAlpha/downPixelSize)/247,
+			// 	// uint8(maxRed),
+			// 	// uint8(maxGreen),
+			// 	// uint8(maxBlue),
+			// 	// uint8(averageAlpha),
+			// )
 
 			newImage.Set(column, row, color.RGBA{
-				uint8(maxRed / downPixelSize),
-				uint8(maxGreen / downPixelSize),
-				uint8(maxBlue / downPixelSize),
+				uint8(maxRed / downPixelSize / 247),
+				uint8(maxGreen / downPixelSize / 247),
+				uint8(maxBlue / downPixelSize / 247),
 				uint8(averageAlpha / downPixelSize),
 			})
 
@@ -227,32 +244,32 @@ func main() {
 	for _, file := range entries {
 		fileName := file.Name()
 
-		kernel := Kernel2D{
-			inputs: []float64{
-				// -1, -1, -1,
-				// -1, 8, -1,
-				// -1, -1, -1,
-				// -1, -2, -1,
-				// 0, 0, 0,
-				// 1, 2, 1,
-				0.111, 0.111, 0.111,
-				0.111, 0.111, 0.111,
-				0.111, 0.111, 0.111,
-			},
-			widget: 3,
-			height: 3,
-		}
+		// kernel := Kernel2D{
+		// 	inputs: []float64{
+		// 		// -1, -1, -1,
+		// 		// -1, 8, -1,
+		// 		// -1, -1, -1,
+		// 		// -1, -2, -1,
+		// 		// 0, 0, 0,
+		// 		// 1, 2, 1,
+		// 		0.111, 0.111, 0.111,
+		// 		0.111, 0.111, 0.111,
+		// 		0.111, 0.111, 0.111,
+		// 	},
+		// 	widget: 3,
+		// 	height: 3,
+		// }
 		fmt.Println("CONVOLVED: ", fileName)
 
-		img, _ := getImageFromFilePath(dirPath + fileName)
-		saveImageAt(kernel.ConvolutionImage(img), "./save/"+fileName)
-		fmt.Println("POOLED: ", fileName)
+		// img, _ := getImageFromFilePath(dirPath + fileName)
+		// saveImageAt(kernel.ConvolutionImage(img), "./save/"+fileName)
+		// fmt.Println("POOLED: ", fileName)
 
-		imgPool, _ := getImageFromFilePath(dirPath + fileName)
-		saveImageAt(kernel.ConvolutionPoolImage(imgPool), "./save/pool"+fileName)
+		// imgPool, _ := getImageFromFilePath(dirPath + fileName)
+		// saveImageAt(kernel.ConvolutionPoolImage(imgPool), "./save/pool"+fileName)
 
-		imgMaxPool, _ := getImageFromFilePath(dirPath + fileName)
-		saveImageAt(MaxPoolImage(imgMaxPool, 2, 2), "./save/MaxPool"+fileName)
+		// imgMaxPool, _ := getImageFromFilePath(dirPath + fileName)
+		// saveImageAt(MaxPoolImage(imgMaxPool, 2, 2), "./save/MaxPool"+fileName)
 
 		imgAveragePool, _ := getImageFromFilePath(dirPath + fileName)
 		saveImageAt(AveragePoolImage(imgAveragePool, 2, 2), "./save/AveragePool"+fileName)
