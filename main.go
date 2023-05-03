@@ -1,319 +1,60 @@
 package main
 
 import (
-	"bytes"
+	"convolution/convolution"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
-	"log"
-	"math"
-	"os"
+
+	"gocv.io/x/gocv"
 )
 
-// func main() {
-
-// }
-
-//	type Shape2D struct {
-//		inputs []float64
-//		widget int
-//		height int
-//	}
-type Input2D struct {
-	inputs []float64
-	widget int
-	height int
-}
-
-type Kernel2D struct {
-	inputs []float64
-	widget int
-	height int
-}
-
-func (kernel Kernel2D) ConvolutionImage(img image.Image) image.Image {
-	kernelLen := len(kernel.inputs)
-	bounds := img.Bounds()
-	// maxColor := float64(257 * 255)
-	centerX := int(math.Floor(float64(kernel.widget) / 2))
-	centerY := int(math.Floor(float64(kernel.height) / 2))
-
-	newImage := image.NewRGBA(image.Rect(0, 0, bounds.Max.X, bounds.Max.Y))
-	for row := 0; row < bounds.Max.Y; row++ {
-		for column := 0; column < bounds.Max.X; column++ {
-			var red float64 = 0
-			var green float64 = 0
-			var blue float64 = 0
-			var alpha float64 = 0
-			for k := 0; k < kernelLen; k++ {
-				kx := k % kernel.widget
-				ky := (k - kx) / kernel.widget
-
-				x := (column + kx - centerX)
-				y := (row + ky - centerY)
-				r, g, b, a := img.At(x, y).RGBA()
-				kernelInput := kernel.inputs[k]
-
-				red = red + (float64(r>>8) * kernelInput)
-				green = green + (float64(g>>8) * kernelInput)
-				blue = blue + (float64(b>>8) * kernelInput)
-				if column == x && row == y {
-					alpha = float64(a >> 8)
-				}
-
-			}
-
-			newImage.Set(column, row, color.RGBA{
-				uint8(math.Max(math.Min(red, 255), 0)),
-				uint8(math.Max(math.Min(green, 255), 0)),
-				uint8(math.Max(math.Min(blue, 255), 0)),
-				uint8(alpha),
-			})
-
-		}
-	}
-
-	return newImage
-}
-func (kernel Kernel2D) ConvolutionPoolImage(img image.Image) image.Image {
-	kernelLen := len(kernel.inputs)
-	bounds := img.Bounds()
-	//////////////////////
-	newWidget := bounds.Max.X - kernel.widget
-	newHeight := bounds.Max.Y - kernel.height
-
-	newImage := image.NewRGBA(image.Rect(0, 0, newWidget, newHeight))
-	for row := 0; row < newHeight; row++ {
-		for column := 0; column < newWidget; column++ {
-			var red float64 = 0
-			var green float64 = 0
-			var blue float64 = 0
-			var alpha float64 = 0
-			// if ro
-			for k := 0; k < kernelLen; k++ {
-				kx := k % kernel.widget
-				ky := (k - kx) / kernel.widget
-
-				x := column + kx
-				y := row + ky
-				r, g, b, a := img.At(x, y).RGBA()
-				kernelInput := kernel.inputs[k]
-
-				red = red + (float64(r>>8) * kernelInput)
-				green = green + (float64(g>>8) * kernelInput)
-				blue = blue + (float64(b>>8) * kernelInput)
-				if column == x && row == y {
-					alpha = float64(a >> 8)
-				}
-
-			}
-
-			newImage.Set(column, row, color.RGBA{
-				uint8(math.Max(math.Min(red, 255), 0)),
-				uint8(math.Max(math.Min(green, 255), 0)),
-				uint8(math.Max(math.Min(blue, 255), 0)),
-				uint8(alpha),
-			})
-
-		}
-	}
-
-	return newImage
-}
-func MaxPoolImage(img image.Image, widget int, height int) image.Image {
-	bounds := img.Bounds()
-	//////////////////////
-	newWidget := int(math.Round(float64(bounds.Max.X / widget)))
-	newHeight := int(math.Round(float64(bounds.Max.Y / height)))
-
-	newImage := image.NewRGBA(image.Rect(0, 0, newWidget, newHeight))
-
-	for row := 0; row < newHeight; row++ {
-		for column := 0; column < newWidget; column++ {
-			var maxRed float64 = 0
-			var maxGreen float64 = 0
-			var maxBlue float64 = 0
-			var averageAlpha float64 = 0
-
-			for rowY := (row * height); rowY < ((row * height) + height); rowY++ {
-
-				for columnX := (column * widget); columnX < ((column * widget) + widget); columnX++ {
-					r, g, b, a := img.At(columnX, rowY).RGBA()
-
-					maxRed = math.Max(maxRed, float64(r))
-					maxGreen = math.Max(maxGreen, float64(g))
-					maxBlue = math.Max(maxBlue, float64(b))
-					averageAlpha += float64(a)
-				}
-			}
-
-			newImage.Set(column, row, color.RGBA{
-				uint8(maxRed),
-				uint8(maxGreen),
-				uint8(maxBlue),
-				uint8(averageAlpha / float64(height*widget)),
-			})
-
-		}
-	}
-
-	return newImage
-}
-func AveragePoolImage(img image.Image, widget int, height int) image.Image {
-	bounds := img.Bounds()
-	//////////////////////
-	newWidget := int(math.Round(float64(bounds.Max.X / widget)))
-	newHeight := int(math.Round(float64(bounds.Max.Y / height)))
-
-	newImage := image.NewRGBA(image.Rect(0, 0, newWidget, newHeight))
-
-	downPixelSize := uint64(height * widget)
-	for row := 0; row < newHeight; row++ {
-		for column := 0; column < newWidget; column++ {
-			var maxRed uint64 = 0
-			var maxGreen uint64 = 0
-			var maxBlue uint64 = 0
-			var averageAlpha uint64 = 0
-
-			for rowY := (row * height); rowY < ((row * height) + height); rowY++ {
-
-				for columnX := (column * widget); columnX < ((column * widget) + widget); columnX++ {
-					r, g, b, a := img.At(columnX, rowY).RGBA()
-
-					maxRed = (maxRed + uint64(r))
-					maxGreen = (maxGreen + uint64(g))
-					maxBlue = (maxBlue + uint64(b))
-					averageAlpha = (averageAlpha + uint64(a))
-					// fmt.Println("COLOR1: ", uint64(r), uint64(g), uint64(b), uint64(a), "COLOR2: ",
-					// 	uint64(maxRed),
-					// 	uint64(maxGreen),
-					// 	uint64(maxBlue),
-					// 	uint64(averageAlpha),
-					// )
-				}
-			}
-			// fmt.Println("RGBA: ",
-			// 	uint64(maxRed/downPixelSize),
-			// 	uint64(maxGreen/downPixelSize),
-			// 	uint64(maxBlue/downPixelSize),
-			// 	uint64(averageAlpha/downPixelSize),
-			// 	// uint8(averageAlpha/downPixelSize)/247,
-			// 	// uint8(maxRed),
-			// 	// uint8(maxGreen),
-			// 	// uint8(maxBlue),
-			// 	// uint8(averageAlpha),
-			// )
-
-			newImage.Set(column, row, color.RGBA{
-				uint8(maxRed / downPixelSize / 247),
-				uint8(maxGreen / downPixelSize / 247),
-				uint8(maxBlue / downPixelSize / 247),
-				uint8(averageAlpha / downPixelSize),
-			})
-
-		}
-	}
-
-	return newImage
-}
-
-type Layer struct {
-	inputs []float64
-	widget int
-	height int
-}
-
-type Network struct {
-	Layers []Layer
-}
-
-func (net Network) addLayer(inputs []float64) {
-	net.Layers = append(net.Layers, Layer{
-		inputs: inputs,
-	})
-}
-
+// C:\Program Files (x86)\CMake\bin;C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64\bin
 func main() {
-	dirPath := "./images/"
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		log.Fatal(err)
+	webcam, _ := gocv.OpenVideoCapture(1)
+	window := gocv.NewWindow("Hello")
+	img := gocv.NewMat()
+
+	kernel := convolution.Kernel2D{
+		Inputs: []float64{
+			-1, -1, -1,
+			-1, 8, -1,
+			-1, -1, -1,
+			// -1, -2, -1,
+			// 0, 0, 0,
+			// 1, 2, 1,
+			// 0.111, 0.111, 0.111,
+			// 0.111, 0.111, 0.111,
+			// 0.111, 0.111, 0.111,
+		},
+		Widget: 3,
+		Height: 3,
 	}
 
-	for _, file := range entries {
-		fileName := file.Name()
+	// window.setMouseCallback
+	// w := gocv.NewWindow("test")
+	// mouse_callback := func(event int, x int, y int, flags int) {
+	// 	if event == cv.EVENT_LBUTTONDOWN {
+	// 		Prln("mouse click at: " + I2S(x) + "," + I2S(y))
+	// 	}
+	// }
+	// w.SetMouseCallback(mouse_callback)
+	fmt.Println("CONVOLVED: ", kernel)
 
-		// kernel := Kernel2D{
-		// 	inputs: []float64{
-		// 		// -1, -1, -1,
-		// 		// -1, 8, -1,
-		// 		// -1, -1, -1,
-		// 		// -1, -2, -1,
-		// 		// 0, 0, 0,
-		// 		// 1, 2, 1,
-		// 		0.111, 0.111, 0.111,
-		// 		0.111, 0.111, 0.111,
-		// 		0.111, 0.111, 0.111,
-		// 	},
-		// 	widget: 3,
-		// 	height: 3,
-		// }
-		fmt.Println("CONVOLVED: ", fileName)
+	// ioutil.WriteFile("output.png", , 0644)
+	// convolvedImg := kernel.ConvolutionImage(image)
 
-		// img, _ := getImageFromFilePath(dirPath + fileName)
-		// saveImageAt(kernel.ConvolutionImage(img), "./save/"+fileName)
-		// fmt.Println("POOLED: ", fileName)
+	// conv, _ := gocv.ImageToMatRGBA(convolvedImg)
+	// ioutil.WriteFile("output.png", , 0644)
 
-		// imgPool, _ := getImageFromFilePath(dirPath + fileName)
-		// saveImageAt(kernel.ConvolutionPoolImage(imgPool), "./save/pool"+fileName)
-
-		// imgMaxPool, _ := getImageFromFilePath(dirPath + fileName)
-		// saveImageAt(MaxPoolImage(imgMaxPool, 2, 2), "./save/MaxPool"+fileName)
-
-		imgAveragePool, _ := getImageFromFilePath(dirPath + fileName)
-		saveImageAt(AveragePoolImage(imgAveragePool, 2, 2), "./save/AveragePool"+fileName)
-
+	for {
+		webcam.Read(&img)
+		image, _ := img.ToImage()
+		convolvedImg := kernel.ConvolutionImage(image)
+		convMapPool := convolution.MaxPoolImage(convolvedImg, 5, 5)
+		updatedIMG, _ := gocv.ImageToMatRGBA(convMapPool)
+		// windoww.get
+		// window.WaitKey(2)
+		// fmt.Println("CLICK")
+		window.IMShow(updatedIMG)
+		window.WaitKey(1)
 	}
-	fmt.Println("END")
-}
-func saveImageAt(image image.Image, path string) {
-	var imageBuf bytes.Buffer
-	png.Encode(&imageBuf, image)
-
-	// Write to file.
-	outfile, err := os.Create(path)
-	if err != nil {
-		// replace this with real error handling
-		panic(err.Error())
-	}
-	defer outfile.Close()
-	png.Encode(outfile, image)
-}
-func getImageFromFilePath(filePath string) (image.Image, error) {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	image, _ := png.Decode(f)
-	return image, err
-}
-
-func rgbaToNum[T int | uint | uint32](r T, g T, b T, a T) T {
-	rgb := r
-	rgb = (rgb << 8) + g
-	rgb = (rgb << 8) + b
-	rgb = (rgb << 8) + a
-	return rgb
-}
-
-func numToRgba(num int) (int, int, int, int) {
-
-	red := (num >> 24) & 0xFF
-	green := (num >> 16) & 0xFF
-	blue := (num >> 8) & 0xFF
-	a := num & 0xFF
-
-	return red, green, blue, a
 }
